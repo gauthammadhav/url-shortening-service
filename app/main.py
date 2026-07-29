@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from pydantic import BaseModel,HttpUrl
-import random
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 from app.database import Base, engine
@@ -12,7 +11,6 @@ import uuid
 from app.database import get_db
 from app.models import URL
 from app.schemas import URLResponse
-Base.metadata.create_all(bind=engine)   
 app=FastAPI()
 @app.get("/")
 def root():
@@ -40,6 +38,10 @@ class URLRequest(BaseModel):
 def generate_short_code():
     return uuid.uuid4().hex[:8]
 
+
+def build_short_url(short_code: str) -> str:
+    return f"http://localhost:8000/{short_code}"
+
 @app.post("/urls",response_model=URLResponse)
 def create_url(request:URLRequest, db:Session=Depends(get_db)):
     while True:
@@ -52,9 +54,14 @@ def create_url(request:URLRequest, db:Session=Depends(get_db)):
     db.add(url)
     db.commit()
     db.refresh(url)
+    
+    shortened_url = build_short_url(url.short_code)
+
     return URLResponse(
         original_url=url.original_url,
-        short_code=url.short_code
+        short_code=url.short_code,
+        click_count=url.click_count,
+        shortened_url=shortened_url
     )
     # short_code = generate_short_code()
     # url_db[short_code] = request.url
@@ -64,31 +71,41 @@ def create_url(request:URLRequest, db:Session=Depends(get_db)):
     #     "short_code":short_code
     # }
 @app.get("/{short_code}")
-def get_url(short_code:str,db:Session=Depends(get_db)):
+def redirect_url(short_code:str,db:Session=Depends(get_db)):
     stmt = select(URL).where(URL.short_code == short_code)
-    url = db.scalars(stmt).all()
+    url = db.scalar(stmt)
    #old sqlalchemdy format 
     # url = db.query(URL).filter(URL.short_code == short_code).first()
-    if url:
-        return RedirectResponse(url=url.original_url)
-    else:
+    if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")
-app.get("/urls/{short_code}", response_model=URLResponse)
-def get_url(short_code:str, db:Session=Depends(get_db)):
+    url.click_count += 1
+    db.commit()
+    return RedirectResponse(url=url.original_url)
+    
+    
+@app.get("/urls/{short_code}", response_model=URLResponse)
+def get_url_info(short_code:str, db:Session=Depends(get_db)):
     stmt=select(URL).where(URL.short_code == short_code)
     url=db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")
-    else:
-        return URLResponse(
-            original_url=url.original_url,
-            short_code=url.short_code
+    shortened_url = build_short_url(url.short_code)
+    return URLResponse(
+        original_url=url.original_url,
+        short_code=url.short_code,
+        click_count=url.click_count,
+        shortened_url=shortened_url
         )
-app.get("/urls", response_model=list[URLResponse])
+        
+        
+        
+@app.get("/urls", response_model=list[URLResponse])
 def get_all_urls(db:Session=Depends(get_db)):
     stmt=select(URL)
     urls=db.scalars(stmt).all()
-    return [URLResponse(original_url=url.original_url, short_code=url.short_code) for url in urls]
+    return [URLResponse(original_url=url.original_url, short_code=url.short_code, click_count=url.click_count, shortened_url=build_short_url(url.short_code)) for url in urls]
+
+
 @app.delete("/urls/{short_code}")
 def delete_url(short_code:str, db:Session=Depends(get_db)):
     stmt=select(URL).where(URL.short_code == short_code)
@@ -98,6 +115,8 @@ def delete_url(short_code:str, db:Session=Depends(get_db)):
     db.delete(url)
     db.commit()
     return {"message": f"Short code {short_code} deleted successfully."}
+
+
 @app.put("/urls/{short_code}", response_model=URLResponse)
 def update_url(short_code:str, request:URLRequest, db:Session=Depends(get_db)):
     stmt=select(URL).where(URL.short_code==short_code)
@@ -106,8 +125,14 @@ def update_url(short_code:str, request:URLRequest, db:Session=Depends(get_db)):
         raise HTTPException(status_code=404, detail="Short code not found")
     url.original_url=request.url
     db.commit()
+    db.refresh(url)
+    shortened_url = build_short_url(url.short_code)
     return URLResponse(
         original_url=url.original_url,
-        short_code=url.short_code
+        short_code=url.short_code,
+        click_count=url.click_count,
+        shortened_url=shortened_url
     )
+    
+
     
