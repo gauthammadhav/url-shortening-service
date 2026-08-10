@@ -9,11 +9,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 import uuid
 from app.database import get_db
-from app.models import URL
+from app.auth.dependencies import get_current_user
+from app.auth.router import router as auth_router
+from app.models import URL, User
 from app.schemas import URLResponse, URLRequest
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+app.include_router(auth_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,14 +54,22 @@ def build_short_url(short_code: str) -> str:
     return f"http://localhost:8000/{short_code}"
 
 @app.post("/urls", response_model=URLResponse, status_code=status.HTTP_201_CREATED)
-def create_url(request:URLRequest, db:Session=Depends(get_db)):
+def create_url(
+    request: URLRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     while True:
         short_code = generate_short_code()
         stmt = select(URL).where(URL.short_code == short_code)
         existing_url = db.scalar(stmt)
         if existing_url is None:
             break
-    url = URL(original_url=str(request.url), short_code=short_code)
+    url = URL(
+        original_url=str(request.url),
+        short_code=short_code,
+        user_id=current_user.id,
+    )
     db.add(url)
     db.commit()
     db.refresh(url)
@@ -80,8 +91,15 @@ def create_url(request:URLRequest, db:Session=Depends(get_db)):
     # }
     
 @app.get("/urls/{short_code}", response_model=URLResponse)
-def get_url_info(short_code:str, db:Session=Depends(get_db)):
-    stmt=select(URL).where(URL.short_code == short_code)
+def get_url_info(
+    short_code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(URL).where(
+        URL.short_code == short_code,
+        URL.user_id == current_user.id,
+    )
     url=db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")
@@ -96,16 +114,26 @@ def get_url_info(short_code:str, db:Session=Depends(get_db)):
         
         
 @app.get("/urls", response_model=list[URLResponse])
-def get_all_urls(db:Session=Depends(get_db)):
+def get_all_urls(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     print("GET /urls endpoint called")
-    stmt=select(URL)
+    stmt = select(URL).where(URL.user_id == current_user.id)
     urls=db.scalars(stmt).all()
     return [URLResponse(original_url=url.original_url, short_code=url.short_code, click_count=url.click_count, shortened_url=build_short_url(url.short_code)) for url in urls]
 
 
 @app.delete("/urls/{short_code}")
-def delete_url(short_code:str, db:Session=Depends(get_db)):
-    stmt=select(URL).where(URL.short_code == short_code)
+def delete_url(
+    short_code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(URL).where(
+        URL.short_code == short_code,
+        URL.user_id == current_user.id,
+    )
     url=db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="short code not found")
@@ -115,8 +143,16 @@ def delete_url(short_code:str, db:Session=Depends(get_db)):
 
 
 @app.put("/urls/{short_code}", response_model=URLResponse)
-def update_url(short_code:str, request:URLRequest, db:Session=Depends(get_db)):
-    stmt=select(URL).where(URL.short_code==short_code)
+def update_url(
+    short_code: str,
+    request: URLRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(URL).where(
+        URL.short_code == short_code,
+        URL.user_id == current_user.id,
+    )
     url=db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { login } from "./api/authApi";
 import { createUrl, deleteUrl, getUrls } from "./api/urlApi";
 
 function App() {
@@ -6,14 +7,24 @@ function App() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [copiedShortCode, setCopiedShortCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
-  useEffect(() => {
-    // API details live in urlApi so this component only manages UI state.
-    getUrls()
-      .then((data) => {
-        setUrls(data);
-      });
-  }, []);
+  async function handleLogin(event) {
+    event.preventDefault();
+    setLoginError("");
+
+    try {
+      const tokenResponse = await login(email, password);
+      localStorage.setItem("access_token", tokenResponse.access_token);
+      const authenticatedUrls = await getUrls();
+      setUrls(authenticatedUrls);
+      setPassword("");
+    } catch (apiError) {
+      setLoginError(apiError.message);
+    }
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -75,6 +86,63 @@ function App() {
             Create compact links that are easy to share and track.
           </p>
         </header>
+
+        <section className="mb-8 rounded-xl border border-blue-100 bg-blue-50/70 p-5 shadow-sm sm:p-6">
+          <div className="mb-5">
+            <h2 className="!m-0 text-lg font-semibold text-gray-900">Sign in</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Log in to create and manage your shortened links.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="grid gap-4 sm:grid-cols-2 sm:items-end">
+            <div>
+              <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-800">
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                placeholder="you@example.com"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="mb-2 block text-sm font-semibold text-gray-800">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="sm:col-span-2 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white shadow-sm transition duration-200 hover:bg-blue-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-200"
+            >
+              Login to your account
+            </button>
+          </form>
+
+          {loginError && (
+            <p
+              role="alert"
+              className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {loginError}
+            </p>
+          )}
+        </section>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
           <label htmlFor="url" className="sr-only">
