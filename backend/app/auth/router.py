@@ -8,7 +8,7 @@ from app.auth.schemas import RegisterRequest, TokenResponse, UserResponse
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.database import get_db
 from app.models import User
-
+from app.logging_config import logger
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -40,6 +40,11 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)) -> Us
         ) from None
 
     db.refresh(user)
+
+    logger.info(
+        f"User registered - user_id={user.id}"
+    )
+
     return user
 
 
@@ -52,10 +57,16 @@ def login_user(
     email = form_data.username.lower()
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(form_data.password, user.hashed_password):
+        logger.warning("User login failed - invalid credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
 
     access_token = create_access_token({"sub": str(user.id)})
+
+    logger.info(
+        f"User login successful - user_id={user.id}"
+    )
+
     return TokenResponse(access_token=access_token)

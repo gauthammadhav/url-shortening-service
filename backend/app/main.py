@@ -1,21 +1,55 @@
-from fastapi import FastAPI, status
-from pydantic import BaseModel,HttpUrl
+from fastapi import FastAPI, status, Request
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
-from app.database import Base, engine
-from app import models
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 import uuid
+import os
+import time
+from app.logging_config import logger 
+from dotenv import load_dotenv
+load_dotenv()
+
+
+BASE_URL = os.getenv("BASE_URL")
+
+if BASE_URL is None:
+    raise ValueError("BASE_URL environment variable is not set.")
 from app.database import get_db
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
 from app.models import URL, User
 from app.schemas import URLResponse, URLRequest
 from fastapi.middleware.cors import CORSMiddleware
+"""
+docker
+.env vars
+middleware
+code linting : ruff / auto-pep8 / black / isort
+package manager: poetry / astral UV
+python generators (yield vs return)
+module / package : init.py
+duner methods / data model methods
+def __new__():...
+from typing import List
+JWT internals
+"""
 
 app = FastAPI()
+@app.middleware("http")
+async def log_requests(request:Request,call_next):
+    start_time=time.perf_counter()
+
+    response = await call_next(request)
+    process_time = (time.perf_counter()-start_time)*1000
+
+    logger.info(
+        f"Request {request.method} {request.url.path} - {response.status_code} - {process_time:.2f} ms"
+    )
+
+    return response
+    
 app.include_router(auth_router)
 app.add_middleware(
     CORSMiddleware,
@@ -51,7 +85,7 @@ def generate_short_code():
 
 
 def build_short_url(short_code: str) -> str:
-    return f"http://localhost:8000/{short_code}"
+    return f"{BASE_URL}/{short_code}"
 
 @app.post("/urls", response_model=URLResponse, status_code=status.HTTP_201_CREATED)
 def create_url(
@@ -73,6 +107,10 @@ def create_url(
     db.add(url)
     db.commit()
     db.refresh(url)
+
+    logger.info(
+        f"URL created - user_id={current_user.id} - short_code={url.short_code}"
+    )
     
     shortened_url = build_short_url(url.short_code)
 
@@ -110,15 +148,12 @@ def get_url_info(
         click_count=url.click_count,
         shortened_url=shortened_url
         )
-        
-        
-        
+
 @app.get("/urls", response_model=list[URLResponse])
 def get_all_urls(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    print("GET /urls endpoint called")
     stmt = select(URL).where(URL.user_id == current_user.id)
     urls=db.scalars(stmt).all()
     return [URLResponse(original_url=url.original_url, short_code=url.short_code, click_count=url.click_count, shortened_url=build_short_url(url.short_code)) for url in urls]
