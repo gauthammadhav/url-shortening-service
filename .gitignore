@@ -12,5 +12,10 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 
+# Local databases
 *.db
 
+# Database backups / dumps
+*.backup
+*.dump
+*.sql
