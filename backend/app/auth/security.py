@@ -1,10 +1,9 @@
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import jwt
 from passlib.context import CryptContext
-
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -39,7 +38,7 @@ def create_access_token(
     secret_key, algorithm = get_jwt_config()
 
     payload = data.copy()
-    expires_at = datetime.now(timezone.utc) + (
+    expires_at = datetime.now(UTC) + (
         expires_delta or timedelta(minutes=15)
     )
     payload["exp"] = expires_at

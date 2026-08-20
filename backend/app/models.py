@@ -11,7 +11,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    urls: Mapped[list["URL"]] = relationship(back_populates="owner")
+    urls: Mapped[list[URL]] = relationship(back_populates="owner")
 
 
 class URL(Base):
@@ -27,4 +27,4 @@ class URL(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
-    owner: Mapped["User"] = relationship(back_populates="urls")
+    owner: Mapped[User] = relationship(back_populates="urls")

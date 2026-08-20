@@ -10,7 +10,6 @@ from app.auth.security import get_jwt_config
 from app.database import get_db
 from app.models import User
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
@@ -36,7 +35,7 @@ def get_current_user(
         payload = jwt.decode(token, secret_key, algorithms=[algorithm])
         subject = payload.get("sub")
         if not isinstance(subject, str):
-            raise ValueError("JWT subject is missing or malformed.")
+            raise TypeError("JWT subject is missing or malformed.")
         user_id = int(subject)
     except (JWTError, TypeError, ValueError):
         raise _credentials_exception() from None
