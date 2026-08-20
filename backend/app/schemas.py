@@ -2,10 +2,11 @@ from pydantic import BaseModel, HttpUrl
 
 
 class URLRequest(BaseModel):
-    url:HttpUrl
+    url: HttpUrl
+
 
 class URLResponse(BaseModel):
-    original_url:str
-    short_code:str
-    click_count:int
-    shortened_url:str|None=None
+    original_url: str
+    short_code: str
+    click_count: int
+    shortened_url: str | None = None

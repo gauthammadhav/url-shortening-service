@@ -79,6 +79,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "black>=26.5.1",
     "ruff>=0.16.3",
 ]
 

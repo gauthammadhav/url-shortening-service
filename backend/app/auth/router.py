@@ -41,9 +41,7 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)) -> Us
 
     db.refresh(user)
 
-    logger.info(
-        f"User registered - user_id={user.id}"
-    )
+    logger.info(f"User registered - user_id={user.id}")
 
     return user
 
@@ -65,8 +63,6 @@ def login_user(
 
     access_token = create_access_token({"sub": str(user.id)})
 
-    logger.info(
-        f"User login successful - user_id={user.id}"
-    )
+    logger.info(f"User login successful - user_id={user.id}")
 
     return TokenResponse(access_token=access_token)

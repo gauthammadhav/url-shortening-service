@@ -38,8 +38,6 @@ def create_access_token(
     secret_key, algorithm = get_jwt_config()
 
     payload = data.copy()
-    expires_at = datetime.now(UTC) + (
-        expires_delta or timedelta(minutes=15)
-    )
+    expires_at = datetime.now(UTC) + (expires_delta or timedelta(minutes=15))
     payload["exp"] = expires_at
     return jwt.encode(payload, secret_key, algorithm=algorithm)

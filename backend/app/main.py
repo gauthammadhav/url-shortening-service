@@ -40,19 +40,22 @@ JWT internals
 """
 
 app = FastAPI()
+
+
 @app.middleware("http")
-async def log_requests(request:Request,call_next):
-    start_time=time.perf_counter()
+async def log_requests(request: Request, call_next):
+    start_time = time.perf_counter()
 
     response = await call_next(request)
-    process_time = (time.perf_counter()-start_time)*1000
+    process_time = (time.perf_counter() - start_time) * 1000
 
     logger.info(
         f"Request {request.method} {request.url.path} - {response.status_code} - {process_time:.2f} ms"
     )
 
     return response
-    
+
+
 app.include_router(auth_router)
 app.add_middleware(
     CORSMiddleware,
@@ -61,34 +64,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def root():
     return {"message": "Welcome to the URL Shortener API!"}
+
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+
 @app.get("/about")
 def about():
-    return {"project": "URL Shortener",
-            "version": "1.0"}
+    return {"project": "URL Shortener", "version": "1.0"}
+
+
 @app.get("/hello")
-def hello(name:str):
-    return {
-        "message":f"Hello, {name}!"
-    }
+def hello(name: str):
+    return {"message": f"Hello, {name}!"}
+
+
 @app.post("/hello")
 def hello_post():
-    return {
-        "message":"Hello from POST request!"
-    }
+    return {"message": "Hello from POST request!"}
 
-    
+
 def generate_short_code():
     return uuid.uuid4().hex[:8]
 
 
 def build_short_url(short_code: str) -> str:
     return f"{BASE_URL}/{short_code}"
+
 
 @app.post("/urls", response_model=URLResponse, status_code=status.HTTP_201_CREATED)
 def create_url(
@@ -114,14 +122,14 @@ def create_url(
     logger.info(
         f"URL created - user_id={current_user.id} - short_code={url.short_code}"
     )
-    
+
     shortened_url = build_short_url(url.short_code)
 
     return URLResponse(
         original_url=url.original_url,
         short_code=url.short_code,
         click_count=url.click_count,
-        shortened_url=shortened_url
+        shortened_url=shortened_url,
     )
     # short_code = generate_short_code()
     # url_db[short_code] = request.url
@@ -130,7 +138,8 @@ def create_url(
     #     "url":request.url,
     #     "short_code":short_code
     # }
-    
+
+
 @app.get("/urls/{short_code}", response_model=URLResponse)
 def get_url_info(
     short_code: str,
@@ -141,7 +150,7 @@ def get_url_info(
         URL.short_code == short_code,
         URL.user_id == current_user.id,
     )
-    url=db.scalar(stmt)
+    url = db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")
     shortened_url = build_short_url(url.short_code)
@@ -149,8 +158,9 @@ def get_url_info(
         original_url=url.original_url,
         short_code=url.short_code,
         click_count=url.click_count,
-        shortened_url=shortened_url
-        )
+        shortened_url=shortened_url,
+    )
+
 
 @app.get("/urls", response_model=list[URLResponse])
 def get_all_urls(
@@ -158,8 +168,16 @@ def get_all_urls(
     current_user: User = Depends(get_current_user),
 ):
     stmt = select(URL).where(URL.user_id == current_user.id)
-    urls=db.scalars(stmt).all()
-    return [URLResponse(original_url=url.original_url, short_code=url.short_code, click_count=url.click_count, shortened_url=build_short_url(url.short_code)) for url in urls]
+    urls = db.scalars(stmt).all()
+    return [
+        URLResponse(
+            original_url=url.original_url,
+            short_code=url.short_code,
+            click_count=url.click_count,
+            shortened_url=build_short_url(url.short_code),
+        )
+        for url in urls
+    ]
 
 
 @app.delete("/urls/{short_code}")
@@ -172,7 +190,7 @@ def delete_url(
         URL.short_code == short_code,
         URL.user_id == current_user.id,
     )
-    url=db.scalar(stmt)
+    url = db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="short code not found")
     db.delete(url)
@@ -191,10 +209,10 @@ def update_url(
         URL.short_code == short_code,
         URL.user_id == current_user.id,
     )
-    url=db.scalar(stmt)
+    url = db.scalar(stmt)
     if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")
-    url.original_url=str(request.url)
+    url.original_url = str(request.url)
     db.commit()
     db.refresh(url)
     shortened_url = build_short_url(url.short_code)
@@ -202,20 +220,18 @@ def update_url(
         original_url=url.original_url,
         short_code=url.short_code,
         click_count=url.click_count,
-        shortened_url=shortened_url
+        shortened_url=shortened_url,
     )
-    
+
+
 @app.get("/{short_code}")
-def redirect_url(short_code:str,db:Session=Depends(get_db)):
+def redirect_url(short_code: str, db: Session = Depends(get_db)):
     stmt = select(URL).where(URL.short_code == short_code)
     url = db.scalar(stmt)
-   #old sqlalchemdy format 
+    # old sqlalchemdy format
     # url = db.query(URL).filter(URL.short_code == short_code).first()
     if url is None:
         raise HTTPException(status_code=404, detail="Short code not found")
     url.click_count += 1
     db.commit()
     return RedirectResponse(url=url.original_url)
-    
-
-    
